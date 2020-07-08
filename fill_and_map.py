@@ -14,6 +14,7 @@ def map_econ_sdg(fpath):
                                     )
 
     sdg_map = sdg_econ_map_in.copy()
+    sdg_map.loc[1,:] = [jj.replace('&','').replace(',','').replace(' ','_') for jj in sdg_map.loc[1,:]] # remove special characters for gams later
     sdg_map_d = {}
 
     for ii in sdg_map.columns:
@@ -71,9 +72,11 @@ def fill_econ(fpath):
                                 )
 
     sdg_econ = sdg_econ_in.copy()
+    del sdg_econ.index.name # remove index column name for gams later
 
     # fix column names
     sdg_econ.columns = [c.split('.')[0] for c in sdg_econ.columns] 
+    sdg_econ.columns = [sdg_econ.columns[0],*[jj.replace('&','').replace(',','').replace(' ','_') for jj in sdg_econ.columns[1:]]] # remove special characters
 
     # fill missing and zero values with income group averages
     sdg_econ.replace(0, np.nan, inplace=True)
