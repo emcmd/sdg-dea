@@ -9,41 +9,48 @@ alias(c,cc);
 
 * load sets from inc file
 $offlisting
-$include data_input_to_gams/sets_sdg0.inc
+$include gams_data_input/sets_sdg0.inc
 
 * load parameter definitions and values from csv files
 table input(c,i) 'inputs'
 $ondelim
 $offdigit
-$include data_input_to_gams/inputs_sdg0.csv
+$include gams_data_input/inputs_sdg0.csv
 $offdelim
 ;
 
 table output(c,o) 'outputs'
 $ondelim
 $offdigit
-$include data_input_to_gams/outputs_sdg0.csv
+$include gams_data_input/outputs_sdg0.csv
 $offdelim
 ;
 
 table output_u(c,o_u) 'undesired outputs'
 $ondelim
 $offdigit
-$include data_input_to_gams/undes_outputs_sdg0.csv
+$include gams_data_input/undes_outputs_sdg0.csv
 $offdelim
 ;
 
 * define remaining parameters, variables, and equations
 parameters
 eff_save(cc)
-eff_out(c)
-epsilon;
+si_save(cc,i)
+so_save(cc,o)
+so_u_save(cc,o_u)
+lambda_save(cc,c)
+epsilon
+io;
+
+*small positive value to enforce positivity on inputs/outputs using method in Tone (2020)
 epsilon = 1e-6;
 
+* switch between input and output-oriented solve
+io = 0;
+
 variables
-eff_primal
-obj_dual
-eff_dual;
+obj;
 
 positive variables
 slack_i(i)
@@ -52,20 +59,26 @@ slack_o_u(o_u)
 lambda(c);
 
 equations
-of_sbm_uo
+of_sbm_uo_oo
+of_sbm_uo_io
 in_sbm_uo
 out_sbm_uo
 out_u_sbm_uo
 vrs_sbm_uo;
 
 * define output-oriented VRS SBM model with undesirable outputs (based on Tone (2001 & 2004))
-of_sbm_uo(cs)..             eff_primal =e= 1 + 1/(card(o)+card(o_u)) * (sum(o, slack_o(o)/output(cs,o)) + sum(o_u, slack_o_u(o_u)/output_u(cs,o_u)));
+of_sbm_uo_oo(cs)..          obj =e= 1 + 1/(card(o)+card(o_u)) * (sum(o, slack_o(o)/output(cs,o)) + sum(o_u, slack_o_u(o_u)/output_u(cs,o_u)));
 in_sbm_uo(cs,i)..           input(cs,i) =e= sum(c, input(c,i)*lambda(c)) + slack_i(i);
 out_sbm_uo(cs,o)..          output(cs,o) =e= sum(c, output(c,o)*lambda(c)) - slack_o(o);
 out_u_sbm_uo(cs,o_u)..      output_u(cs,o_u) =e= sum(c, output_u(c,o_u)*lambda(c)) + slack_o_u(o_u);
 vrs_sbm_uo..                sum(c,lambda(c)) =e= 1;
 
-model sbm_uo    /of_sbm_uo, in_sbm_uo, out_sbm_uo, out_u_sbm_uo, vrs_sbm_uo/
+* define input-oriented VRS SBM model with undesirable outputs (based on Tone (2001 & 2004))
+of_sbm_uo_io(cs)..          obj =e= 1-(1/card(i)) * sum(i, slack_i(i)/input(cs,i));
+
+
+model sbm_uo_oo    /of_sbm_uo_oo, in_sbm_uo, out_sbm_uo, out_u_sbm_uo, vrs_sbm_uo/
+model sbm_uo_io    /of_sbm_uo_io, in_sbm_uo, out_sbm_uo, out_u_sbm_uo, vrs_sbm_uo/
 
 option optcr = 0, reslim = 10800;
 
@@ -89,8 +102,19 @@ if( (smin_o_u le 0),
 * solve loop for each dmu
 loop(cc,
     cs(cc) = yes;
-    solve sbm_uo using LP maximising eff_primal;
-    eff_save(cc) = 1/eff_primal.l;
+
+    if((io=0),
+        solve sbm_uo_oo using LP maximising obj;
+        eff_save(cc) = 1/obj.l;
+    elseif (io=1),
+        solve sbm_uo_io using LP minimising obj;
+        eff_save(cc) = obj.l;
+    );
+
+    si_save(cc,i) = slack_i.l(i);
+    so_save(cc,o) = slack_o.l(o);
+    so_u_save(cc,o_u) = slack_o_u.l(o_u);
+    lambda_save(cc,c) = lambda.l(c);
     cs(cc) = no;
 );
 
@@ -99,10 +123,10 @@ FILE sdg0_eff_res / gams_output_files\sdg0_eff_res.csv /
 PUT sdg0_eff_res;
 
 sdg0_eff_res.pc = 6;
-sdg0_eff_res.pw = 1000;
+sdg0_eff_res.pw = 32767;
 sdg0_eff_res.nd = 10;
 
-put '', 'sdg0';
+put '', 'eff',loop(i,put i.tl); loop(o, put o.tl); loop(o_u, put o_u.tl); loop(c, put c.tl);
 loop(c,
-    put /, c.tl, put eff_save(c);
+    put /, c.tl, put eff_save(c), loop(i,put si_save(c,i)); loop(o,put so_save(c,o)); loop(o_u,put so_u_save(c,o_u)); loop(cc, put lambda_save(c,cc));
 );
