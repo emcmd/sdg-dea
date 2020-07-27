@@ -79,7 +79,8 @@ def fill_econ(fpath):
     sdg_econ.columns = [sdg_econ.columns[0],*[jj.replace('&','').replace(',','').replace(' ','_') for jj in sdg_econ.columns[1:]]] # remove special characters
 
     # fill missing and zero values with income group averages
-    sdg_econ.replace(0, np.nan, inplace=True)
+    sdg_econ.iloc[:,1:] = sdg_econ.iloc[:,1:].clip(lower=0) # treat negatives as zeros
+    sdg_econ.replace(0, np.nan, inplace=True) # treat zeros as NaNs
     sdg_econ.fillna(sdg_econ.groupby(sdg_econ.columns[0])[sdg_econ.columns[1:]].transform('mean'), inplace=True)
 
     return(sdg_econ)
