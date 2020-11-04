@@ -76,7 +76,6 @@ vrs_sbm_uo..                sum(c,lambda(c)) =e= 1;
 * define input-oriented VRS SBM model with undesirable outputs (based on Tone (2001 & 2004))
 of_sbm_uo_io(cs)..          obj =e= 1-(1/card(i)) * sum(i, slack_i(i)/input(cs,i));
 
-
 model sbm_uo_oo    /of_sbm_uo_oo, in_sbm_uo, out_sbm_uo, out_u_sbm_uo, vrs_sbm_uo/
 model sbm_uo_io    /of_sbm_uo_io, in_sbm_uo, out_sbm_uo, out_u_sbm_uo, vrs_sbm_uo/
 

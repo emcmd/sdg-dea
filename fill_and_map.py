@@ -20,20 +20,23 @@ def map_econ_sdg(fpath):
     for ii in sdg_map.columns:
         sdgv = sdg_map.loc[0,ii]
         if (type(sdgv) == int) & (sdgv not in sdg_map_d): # if it's an integer and not mapped yet, map it
-            sdg_map_d[sdgv] = sdg_map.loc[1,ii]
+            # sdg_map_d[sdgv] = sdg_map.loc[1,ii]
+            sdg_map_d[sdgv] = [sdg_map.loc[1,ii]]
 
         elif type(sdgv) == str: # if it's not an integer, split it
             split1 = sdgv.split(',')
 
             if len(split1) > 1: # if multiple values indicate a list of numbers as strings
-                sdgd2 = {int(vv):sdg_map.loc[1,ii] for vv in split1 if int(vv) not in sdg_map_d} # make a second dict with all new numbers and add them
+                # sdgd2 = {int(vv):sdg_map.loc[1,ii] for vv in split1 if int(vv) not in sdg_map_d} # make a second dict with all new numbers and add them
+                sdgd2 = {int(vv):[sdg_map.loc[1,ii]] for vv in split1 if int(vv) not in sdg_map_d} # make a second dict with all new numbers and add them
                 sdg_map_d.update(sdgd2)
         else:
             print('something unexpected happened')
 
     for ii in range(1,18): # map the remaining sdgs to the final economic category
         if ii not in sdg_map_d:
-            sdg_map_d[ii] = sdg_map.iloc[1,-1]
+            # sdg_map_d[ii] = sdg_map.iloc[1,-1]
+            sdg_map_d[ii] = [sdg_map.iloc[1,-1]]
 
     return(sdg_map_d)
 
@@ -113,7 +116,7 @@ def fill_inds(fpath):
 
 def fill_inds_trans(fpath):
     # load transformed sdg indicators and fill missing values
-    sdg_in_trans = pd.read_excel(fpath,
+    inds_t = pd.read_excel(fpath,
                         sheet_name='SDG-DEA FINAL transformed',
                         header=5,
                         index_col=0,
@@ -121,19 +124,19 @@ def fill_inds_trans(fpath):
                         skiprows=[6]
                         )    
 
-    # load economic indicators for income categories
+    # add income categories
     sdg_econ = fill_econ(fpath)
-
-    # fill missing indicator data with income category means
-    inds_t = sdg_in_trans.copy()
     inc_cat = sdg_econ.iloc[:,0].unique() # income categories
+
+    # remove countries with more than [cutoff] missing data
+    cutoff = 0.2
+    inds_t = inds_t[inds_t.isna().sum(axis=1)/inds_t.shape[1] < cutoff]
+    sdg_econ = sdg_econ.loc[inds_t.index,:]
 
     # fill nans with means of income categories
     for ii in inc_cat:
         idx = sdg_econ[sdg_econ.iloc[:,0] == ii].index
         inds_t.loc[idx,:] = inds_t.loc[idx,:].fillna(inds_t.loc[idx,:].mean())
-
-    inds_t = inds_t[inds_t.index.notnull()] # remove nan rows
 
     # use original column names without _inv
     inds_t.columns = [ii.replace('_inv','') for ii in inds_t.columns]
